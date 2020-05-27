@@ -38,7 +38,9 @@ class AlbumViewController: UIViewController, MKMapViewDelegate {
             PhotoClient.getImagesForCoordinate(lat: selectedPin.latitude, lon: selectedPin.longitude) {(data, error) in
                 // data is an array.  If request fails, it'll just be an empty array
                 self.urlArray = data
-                self.albumView.reloadData()
+                DispatchQueue.main.async {
+                    self.albumView.reloadData()
+                }
             }
         } else {
             enableCollectionButton(true)
@@ -77,12 +79,12 @@ class AlbumViewController: UIViewController, MKMapViewDelegate {
         let predicate = NSPredicate(format: "pin == %@", selectedPin)
         fetchRequest.predicate = predicate
         fetchRequest.sortDescriptors = [sortDescriptor]
-        fetchedResultsController = NSFetchedResultsController(fetchRequest: fetchRequest, managedObjectContext: context, sectionNameKeyPath: nil, cacheName: nil)
+        fetchedResultsController = NSFetchedResultsController(fetchRequest: fetchRequest, managedObjectContext: context, sectionNameKeyPath: nil, cacheName: "photo")
         fetchedResultsController.delegate = self
         do {
             try fetchedResultsController.performFetch()
         } catch {
-            fatalError("The Photo fetch could not be performed: \(error.localizedDescription)")
+            print(error.localizedDescription)
         }
     }
     
@@ -114,15 +116,19 @@ class AlbumViewController: UIViewController, MKMapViewDelegate {
             context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
             NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes as [AnyHashable : Any], into: [context])
         } catch {
-            fatalError("Failed to execute request: \(error.localizedDescription)")
+            print(error.localizedDescription)
         }
         
         PhotoClient.getImagesForCoordinate(lat: selectedPin.latitude, lon: selectedPin.longitude) {(data, error) in
             self.urlArray = data
-            self.albumView.reloadData()
+            // scroll to top
+            DispatchQueue.main.async {
+                self.albumView.scrollToItem(at: NSIndexPath(row: 0, section: 0) as IndexPath, at: .centeredVertically, animated: false)
+                self.albumView.reloadData()
+            }
         }
     }
-    
+
     // MARK: - UI Helpers
     func enableCollectionButton(_ flag: Bool) {
         if flag {
@@ -163,6 +169,7 @@ extension AlbumViewController: UICollectionViewDelegate, UICollectionViewDataSou
     }
     
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+//        print(fetchedResultsController.sections?[section].numberOfObjects)
         if loadFromDrive {
             return fetchedResultsController.sections?[section].numberOfObjects ?? 0
         } else {
@@ -170,8 +177,11 @@ extension AlbumViewController: UICollectionViewDelegate, UICollectionViewDataSou
         }
     }
     
+    // load cell
+    // cell gets called multiple time at the same index due to reuse: https://stackoverflow.com/questions/37169087/uicollectionview-cellforitematindexpath-called-over-and-over-again-on-scrolling
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "ImageCollectionViewCell", for: indexPath) as! ImageCollectionViewCell
+        if !collectionView.isValid(indexPath: indexPath) { return cell }
         if loadFromDrive {
             let photo = fetchedResultsController.object(at: indexPath)
             if let data = photo.img {
@@ -183,9 +193,14 @@ extension AlbumViewController: UICollectionViewDelegate, UICollectionViewDataSou
                     return
                 }
                 cell.imageView?.image = UIImage(data: data)
-                self.savePhotoInCoreData(data) //3 item 0 1 2 2 < 3
+                self.savePhotoInCoreData(data)
+                // finish downloading all images
                 if indexPath.row >= self.urlArray.count - 1 {
                     self.loadFromDrive = true
+                }
+                // finish downloading the images in the visible cells
+                // can't use self.fetchedResultsController.fetchedObjects!.count because it hasn't fetched anything starting out
+                if !self.newCollectionButton.isEnabled, indexPath.row >= self.albumView.visibleCells.count - 1 {
                     self.enableCollectionButton(true)
                 }
             }
@@ -193,13 +208,17 @@ extension AlbumViewController: UICollectionViewDelegate, UICollectionViewDataSou
         return cell
     }
     
+    // delete
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath:IndexPath) {
-        let photoToDelete = fetchedResultsController.object(at: indexPath)
-        context.delete(photoToDelete)
+        if urlArray.count > indexPath.row {
+            urlArray.remove(at: indexPath.row)
+        }
         do {
+            let photoToDelete = fetchedResultsController.object(at: indexPath)
+            context.delete(photoToDelete)
             try context.save()
         } catch {
-            fatalError("The photo deletion could not be performed: \(error.localizedDescription)")
+            print(error.localizedDescription)
         }
     }
 }

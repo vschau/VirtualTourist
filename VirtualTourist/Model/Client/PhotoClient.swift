@@ -12,7 +12,7 @@ class PhotoClient {
     private static let apiKey = "ec69f7b541de933d8e3ca1e3174d73de"
     private static let format = "json"
     private static let searchRadius = 10
-    private static let perpage = 20
+    private static let perpage = 25
     // we use this for random images
     private static var maxNumberOfPage = 1
     

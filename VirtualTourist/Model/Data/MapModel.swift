@@ -13,7 +13,7 @@ class MapModel {
     private let mapKey = "Map Defaults"
     static let instance = MapModel()
     
-    func loadSavedMapRegion(latitude: Double = 39.9042, longitude: Double = 116.4074, span: Double = 0.3) -> MKCoordinateRegion {
+    func loadSavedMapRegion(latitude: Double = 32.7767, longitude: Double = -96.7970, span: Double = 0.3) -> MKCoordinateRegion {
         if let data = UserDefaults.standard.data(forKey: mapKey),
             let mapRegion = try? JSONDecoder().decode(MapRegion.self, from: data) {
             return mapRegion.region
