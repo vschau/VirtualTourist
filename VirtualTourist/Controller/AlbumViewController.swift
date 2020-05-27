@@ -79,12 +79,12 @@ class AlbumViewController: UIViewController, MKMapViewDelegate {
         let predicate = NSPredicate(format: "pin == %@", selectedPin)
         fetchRequest.predicate = predicate
         fetchRequest.sortDescriptors = [sortDescriptor]
-        fetchedResultsController = NSFetchedResultsController(fetchRequest: fetchRequest, managedObjectContext: context, sectionNameKeyPath: nil, cacheName: "photo")
+        fetchedResultsController = NSFetchedResultsController(fetchRequest: fetchRequest, managedObjectContext: context, sectionNameKeyPath: nil, cacheName: nil)
         fetchedResultsController.delegate = self
         do {
             try fetchedResultsController.performFetch()
         } catch {
-            print(error.localizedDescription)
+            fatalError("The Photo fetch could not be performed: \(error.localizedDescription)")
         }
     }
     
@@ -116,19 +116,17 @@ class AlbumViewController: UIViewController, MKMapViewDelegate {
             context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
             NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes as [AnyHashable : Any], into: [context])
         } catch {
-            print(error.localizedDescription)
+            fatalError("Failed to execute request: \(error.localizedDescription)")
         }
         
         PhotoClient.getImagesForCoordinate(lat: selectedPin.latitude, lon: selectedPin.longitude) {(data, error) in
             self.urlArray = data
-            // scroll to top
             DispatchQueue.main.async {
-                self.albumView.scrollToItem(at: NSIndexPath(row: 0, section: 0) as IndexPath, at: .centeredVertically, animated: false)
                 self.albumView.reloadData()
             }
         }
     }
-
+    
     // MARK: - UI Helpers
     func enableCollectionButton(_ flag: Bool) {
         if flag {
@@ -176,8 +174,6 @@ extension AlbumViewController: UICollectionViewDelegate, UICollectionViewDataSou
         }
     }
     
-    // load cell
-    // cell gets called multiple time at the same index due to reuse: https://stackoverflow.com/questions/37169087/uicollectionview-cellforitematindexpath-called-over-and-over-again-on-scrolling
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "ImageCollectionViewCell", for: indexPath) as! ImageCollectionViewCell
         if !collectionView.isValid(indexPath: indexPath) { return cell }
@@ -187,19 +183,15 @@ extension AlbumViewController: UICollectionViewDelegate, UICollectionViewDataSou
                 cell.imageView?.image = UIImage(data: data)
             }
         } else {
-//            if indexPath.row < fetchedResultsController.fetchedObjects!.count - 1 { return cell }
             PhotoClient.downloadImage(url: urlArray[indexPath.row]) { (data, error) in
                 guard let data = data else {
                     return
                 }
                 cell.imageView?.image = UIImage(data: data)
                 self.savePhotoInCoreData(data)
-                // finish downloading all images
                 if indexPath.row >= self.urlArray.count - 1 {
                     self.loadFromDrive = true
                 }
-                // finish downloading the images in the visible cells
-                // can't use self.fetchedResultsController.fetchedObjects!.count because it hasn't fetched anything starting out
                 if !self.newCollectionButton.isEnabled, indexPath.row >= self.albumView.visibleCells.count - 1 {
                     self.enableCollectionButton(true)
                 }
@@ -208,17 +200,16 @@ extension AlbumViewController: UICollectionViewDelegate, UICollectionViewDataSou
         return cell
     }
     
-    // delete
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath:IndexPath) {
         if urlArray.count > indexPath.row {
             urlArray.remove(at: indexPath.row)
         }
+        let photoToDelete = fetchedResultsController.object(at: indexPath)
+        context.delete(photoToDelete)
         do {
-            let photoToDelete = fetchedResultsController.object(at: indexPath)
-            context.delete(photoToDelete)
             try context.save()
         } catch {
-            print(error.localizedDescription)
+            fatalError("The photo deletion could not be performed: \(error.localizedDescription)")
         }
     }
 }
