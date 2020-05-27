@@ -169,7 +169,6 @@ extension AlbumViewController: UICollectionViewDelegate, UICollectionViewDataSou
     }
     
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-//        print(fetchedResultsController.sections?[section].numberOfObjects)
         if loadFromDrive {
             return fetchedResultsController.sections?[section].numberOfObjects ?? 0
         } else {
@@ -188,6 +187,7 @@ extension AlbumViewController: UICollectionViewDelegate, UICollectionViewDataSou
                 cell.imageView?.image = UIImage(data: data)
             }
         } else {
+//            if indexPath.row < fetchedResultsController.fetchedObjects!.count - 1 { return cell }
             PhotoClient.downloadImage(url: urlArray[indexPath.row]) { (data, error) in
                 guard let data = data else {
                     return

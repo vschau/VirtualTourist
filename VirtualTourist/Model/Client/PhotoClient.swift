@@ -25,6 +25,10 @@ class PhotoClient {
         var stringValue: String {
             switch self {
                 case .searchImages(let lat, let lon):
+                    // For demo purpose, we restrict the number of page between 1 to 10 
+                    if maxNumberOfPage > 10 {
+                        maxNumberOfPage = 10
+                    }
                     let page = Int.random(in: 1...maxNumberOfPage)
                     return Endpoints.base + "?method=\(Endpoints.searchMethod)&api_key=\(apiKey)&lat=\(lat)&lon=\(lon)&radius=\(searchRadius)&page=\(page)&per_page=\(perpage)&format=\(format)&nojsoncallback=1&content_type=1&extras=url_s"
             }
